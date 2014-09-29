@@ -1,0 +1,33 @@
+#!/bin/bash --debugger
+
+listonline () {
+	#parallel --bar -j+8 livestreamer -Q "{1}{2}" "&>/dev/null" "&&" echo "{1}{2}" ::: twitch.tv/ ::: "${@,,}"
+	twitchbrowser -names "${@,,}" 
+}
+
+if [[ "$#" -eq "1" ]]; then
+	explicit=true
+fi
+
+if [[ "$#" -eq "0" ]]; then
+	set -- -fav
+fi
+
+stream=""
+online=$(listonline "$@" | sort)
+nonline=$(wc -l <<< "$online")
+
+if [[ "$nonline" -eq "1" ]]; then
+	echo "$online"
+	stream="$online"
+	if [[ ! "$explicit" == "true" ]]; then
+		read || exit
+	fi
+elif [[ "$nonline" -gt "1" ]]; then
+	PS3="Select Stream: "
+	select choice in $online; do
+		[[ "x$choice" != "x" ]] && stream="$choice"
+		break
+	done
+fi
+[[ -n "$stream" ]] && livestreamer twitch.tv/"$stream"
