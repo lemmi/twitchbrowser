@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"html"
 	"net/http"
 )
@@ -13,7 +12,7 @@ const (
 
 type srlChannel struct {
 	Display_name    string
-	Current_viewers json.Number
+	Current_viewers int
 	Title           string
 	Name            string
 	Meta_game       string
@@ -29,15 +28,10 @@ func (c srlChannel) Game() string {
 	return c.Meta_game
 }
 func (c srlChannel) Viewers() int {
-	n, err := c.Current_viewers.Int64()
-	if err != nil {
-		fmt.Println(err)
-		n = 0
-	}
-	return int(n)
+	return c.Current_viewers
 }
 
-func (c srlChannel) Unescape() srlChannel {
+func (c srlChannel) unescape() srlChannel {
 	c.Display_name = html.UnescapeString(c.Display_name)
 	c.Title = html.UnescapeString(c.Title)
 	c.Name = html.UnescapeString(c.Name)
@@ -62,7 +56,7 @@ func GetSRLChannels() (chans Chans, err error) {
 	}
 	chans = make(Chans, len(t.Channels))
 	for i, p := range t.Channels {
-		unescaped := p.Channel.Unescape()
+		unescaped := p.Channel.unescape()
 		chans[i] = &unescaped
 	}
 	return
