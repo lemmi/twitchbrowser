@@ -39,9 +39,10 @@ func AsyncCall(reallycall bool, f func() (Chans, error)) <-chan Chans {
 		go func() {
 			chans, err := f()
 			if err != nil {
-				panic(err)
+				fmt.Println(err)
+			} else {
+				ch <- chans
 			}
-			ch <- chans
 			close(ch)
 		}()
 	} else {
