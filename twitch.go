@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -25,21 +26,24 @@ var (
 	}
 )
 
-func TwitchRequest(method string, data url.Values) (resp *http.Response, err error) {
-	url := twitchApiUrl
-	url.Path += method
-	url.RawQuery = data.Encode()
-
-	req, err := http.NewRequest("GET", url.String(), nil)
+func RawTwitchRequest(url string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return
+		return nil, err
 	}
 	req.Header.Set("Client-ID", "browser")
 	req.Header.Set("Accept", "application/vnd.twitchtv.v2+json")
 	req.Close = true
 
-	resp, err = httpclient.Do(req)
-	return
+	return httpclient.Do(req)
+
+}
+func TwitchRequest(method string, data url.Values) (*http.Response, error) {
+	url := twitchApiUrl
+	url.Path += method
+	url.RawQuery = data.Encode()
+
+	return RawTwitchRequest(url.String())
 }
 
 type twitchstream struct {
@@ -106,9 +110,6 @@ func GetChannels(data url.Values) (chans Chans, err error) {
 	data["limit"] = []string{strconv.Itoa(limit)}
 
 	resp, err := TwitchRequest("streams", data)
-	if err != nil {
-		return
-	}
 
 	type inner struct {
 		Name   string
@@ -119,20 +120,36 @@ func GetChannels(data url.Values) (chans Chans, err error) {
 		Viewers int
 		inner   `json:"Channel"`
 	}
+	type links struct {
+		Next *string
+	}
+	type twitchresponse struct {
+		Streams *[]stream
+		Links   links `json:"_links"`
+	}
 
 	streams := []stream{}
+	var next string
 
-	err = json.NewDecoder(resp.Body).Decode(&struct{ Streams *[]stream }{&streams})
-	resp.Body.Close()
+	for err == nil {
+		err = json.NewDecoder(resp.Body).Decode(&twitchresponse{&streams, links{&next}})
+		resp.Body.Close()
 
-	for _, stream := range streams {
-		chans = append(chans, &twitchstream{
-			streamer:    stream.Name,
-			description: stream.Status,
-			game:        stream.Game,
-			viewers:     stream.Viewers,
-		})
+		fmt.Println(len(streams))
+		if len(streams) == 0 {
+			break
+		}
+		for _, stream := range streams {
+			chans = append(chans, &twitchstream{
+				streamer:    stream.Name,
+				description: stream.Status,
+				game:        stream.Game,
+				viewers:     stream.Viewers,
+			})
+		}
+		resp, err = RawTwitchRequest(next)
 	}
+	fmt.Println(err)
 	return
 }
 
