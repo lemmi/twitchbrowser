@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -135,7 +134,6 @@ func GetChannels(data url.Values) (chans Chans, err error) {
 		err = json.NewDecoder(resp.Body).Decode(&twitchresponse{&streams, links{&next}})
 		resp.Body.Close()
 
-		fmt.Println(len(streams))
 		if len(streams) == 0 {
 			break
 		}
@@ -149,7 +147,6 @@ func GetChannels(data url.Values) (chans Chans, err error) {
 		}
 		resp, err = RawTwitchRequest(next)
 	}
-	fmt.Println(err)
 	return
 }
 
