@@ -134,9 +134,6 @@ func GetChannels(data url.Values) (chans Chans, err error) {
 		err = json.NewDecoder(resp.Body).Decode(&twitchresponse{&streams, links{&next}})
 		resp.Body.Close()
 
-		if len(streams) == 0 {
-			break
-		}
 		for _, stream := range streams {
 			chans = append(chans, &twitchstream{
 				streamer:    stream.Name,
@@ -144,6 +141,9 @@ func GetChannels(data url.Values) (chans Chans, err error) {
 				game:        stream.Game,
 				viewers:     stream.Viewers,
 			})
+		}
+		if len(streams) < limit {
+			break
 		}
 		resp, err = RawTwitchRequest(next)
 	}
