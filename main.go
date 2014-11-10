@@ -51,12 +51,14 @@ func AsyncCall(reallycall bool, f func() (Chans, error)) <-chan Chans {
 	return ch
 }
 
-func Print(chans Chans, title string, onlynames bool) {
+func Print(chans Chans, title string, c *Config) {
 	if len(chans) == 0 {
 		return
 	}
-	if onlynames {
+	if c.Onlynames() {
 		PrintNames(chans)
+	} else if c.EnableHTML() {
+		PrintHtml(chans)
 	} else {
 		fmt.Println()
 		fmt.Println(title)
@@ -85,35 +87,91 @@ func HavePager() (cmd *exec.Cmd) {
 	return
 }
 
-func main() {
-	enablefav := flag.Bool("fav", false, "collect favorite channels")
-	enablesrl := flag.Bool("srl", false, "collect srl channels")
-	onlynames := flag.Bool("names", false, "show only online names")
+func SetOutput(c *Config) {
+	if c.EnableHTML() {
+		if file, err := os.Create(c.HTMLFileName()); err == nil {
+			os.Stdout = file
+		} else {
+			panic(err)
+		}
+	}
+
+	if !c.Onlynames() && !c.EnableHTML() {
+		c.pager = HavePager()
+	}
+}
+
+type Config struct {
+	enablefav bool
+	enablesrl bool
+	onlynames bool
+	html      string
+	pager     *exec.Cmd
+
+	names []string
+	nargs int
+}
+
+func (c *Config) EnableFAV() bool {
+	return c.enablefav
+}
+func (c *Config) EnableSRL() bool {
+	return c.enablesrl
+}
+func (c *Config) Onlynames() bool {
+	return c.onlynames
+}
+func (c *Config) EnableHTML() bool {
+	return c.html != ""
+}
+func (c *Config) HTMLFileName() string {
+	return c.html
+}
+func (c *Config) setDefaultBehaviour() {
+	if !c.enablesrl && !c.enablefav && flag.NArg() == 0 {
+		c.enablesrl = true
+		c.enablefav = true
+	}
+}
+
+func GetConfig() *Config {
+	conf := Config{}
+	flag.BoolVar(&conf.enablefav, "fav", false, "collect favorite channels")
+	flag.BoolVar(&conf.enablesrl, "srl", false, "collect srl channels")
+	flag.BoolVar(&conf.onlynames, "names", false, "show only online names")
+	flag.StringVar(&conf.html, "html", "", "Generate HTML output to file")
 	flag.Parse()
+	conf.names = flag.Args()
+	conf.nargs = flag.NArg()
+	conf.setDefaultBehaviour()
+	return &conf
+}
 
-	var pager *exec.Cmd
-	if !*onlynames {
-		pager = HavePager()
+func main() {
+	conf := GetConfig()
+	SetOutput(conf)
+
+	if conf.EnableHTML() {
+		PrintHtmlHeader()
 	}
 
-	if !*enablesrl && !*enablefav && flag.NArg() == 0 {
-		*enablesrl = true
-		*enablefav = true
-	}
-
-	srlchan := AsyncCall(*enablesrl, GetSRLChannels)
-	favchan := AsyncCall(*enablefav, GetFavChannels)
-	customchan := AsyncCall(len(flag.Args()) > 0, GetChannelsFunc(flag.Args()))
+	srlchan := AsyncCall(conf.EnableSRL(), GetSRLChannels)
+	favchan := AsyncCall(conf.EnableFAV(), GetFavChannels)
+	customchan := AsyncCall(conf.nargs > 0, GetChannelsFunc(conf.names))
 	//customgamechan := AsyncCall(true, GetGameFunc("FTL: Faster Than Light"))
 
-	Print(<-srlchan, "SRL", *onlynames)
-	Print(<-favchan, "FAV", *onlynames)
-	Print(<-customchan, "CUSTOM", *onlynames)
+	Print(<-srlchan, "SRL", conf)
+	Print(<-favchan, "FAV", conf)
+	Print(<-customchan, "CUSTOM", conf)
 	//Print(<-customgamechan, "CUSTOMGAME", *onlynames)
 
-	if pager != nil {
-		os.Stdout.Close()
-		if err := pager.Wait(); err != nil {
+	if conf.EnableHTML() {
+		PrintHtmlFooter()
+	}
+
+	os.Stdout.Close()
+	if conf.pager != nil {
+		if err := conf.pager.Wait(); err != nil {
 			panic(err)
 		}
 	}
