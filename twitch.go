@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"os"
@@ -34,7 +35,11 @@ func RawTwitchRequest(url string) (*http.Response, error) {
 	req.Header.Set("Accept", "application/vnd.twitchtv.v2+json")
 	req.Close = true
 
-	return httpclient.Do(req)
+	resp, err := httpclient.Do(req)
+	if resp.StatusCode != 200 {
+		err = errors.New(resp.Status)
+	}
+	return resp, err
 
 }
 func TwitchRequest(method string, data url.Values) (*http.Response, error) {
