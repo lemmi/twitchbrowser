@@ -36,7 +36,7 @@ func RawTwitchRequest(url string) (*http.Response, error) {
 	req.Close = true
 
 	resp, err := httpclient.Do(req)
-	if resp.StatusCode != 200 {
+	if resp != nil && resp.StatusCode != 200 {
 		err = errors.New(resp.Status)
 	}
 	return resp, err
