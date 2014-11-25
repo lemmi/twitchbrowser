@@ -155,7 +155,7 @@ func main() {
 		PrintHtmlHeader()
 	}
 
-	srlchan := AsyncCall(conf.EnableSRL(), GetSRLChannels)
+	srlchan := AsyncCall(conf.EnableSRL(), GetChannelsFunc(GetSRLNames()))
 	favchan := AsyncCall(conf.EnableFAV(), GetFavChannels)
 	customchan := AsyncCall(conf.nargs > 0, GetChannelsFunc(conf.names))
 	//customgamechan := AsyncCall(true, GetGameFunc("FTL: Faster Than Light"))
