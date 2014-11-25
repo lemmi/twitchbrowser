@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	srlApiUrl = "http://api.speedrunslive.com/test/team"
+	srlApiUrl = "http://api.speedrunslive.com/frontend/streams"
 )
 
 type srlChannel struct {
@@ -54,15 +54,17 @@ func GetSRLChannels() (chans Chans, err error) {
 	defer resp.Body.Close()
 
 	t := struct {
-		Channels []struct{ Channel srlChannel }
+		Source struct {
+			Channels []srlChannel
+		} `json:"_source"`
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&t)
 	if err != nil {
 		return
 	}
-	chans = make(Chans, len(t.Channels))
-	for i, p := range t.Channels {
-		unescaped := p.Channel.Unescape()
+	chans = make(Chans, len(t.Source.Channels))
+	for i, p := range t.Source.Channels {
+		unescaped := p.Unescape()
 		chans[i] = &unescaped
 	}
 	return
