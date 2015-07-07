@@ -4,15 +4,14 @@ import (
 	"strings"
 )
 
-type Channel interface {
+type Channeler interface {
 	Streamer() string
 	Description() string
 	Game() string
 	Viewers() int
 }
 
-
-type Chans []Channel
+type Chans []Channeler
 
 func (chans Chans) Len() int {
 	return len(chans)
