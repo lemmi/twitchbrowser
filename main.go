@@ -156,10 +156,12 @@ func main() {
 	}
 
 	favchan := AsyncCall(conf.EnableFAV(), GetFavChannels)
+	//followchan := AsyncCall(conf.EnableFAV(), GetFollowChannels("username"))
 	srlchan := AsyncCall(conf.EnableSRL(), GetChannelsFunc(GetSRLNames()))
 	customchan := AsyncCall(conf.nargs > 0, GetChannelsFunc(conf.names))
 	//customgamechan := AsyncCall(true, GetGameFunc("FTL: Faster Than Light"))
 
+	//Print(<-followchan, "FOLLOW", conf)
 	Print(<-favchan, "FAV", conf)
 	Print(<-srlchan, "SRL", conf)
 	Print(<-customchan, "CUSTOM", conf)
