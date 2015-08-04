@@ -32,7 +32,7 @@ func RawTwitchRequest(url string) (*http.Response, error) {
 		return nil, err
 	}
 	req.Header.Set("Client-ID", "browser")
-	req.Header.Set("Accept", "application/vnd.twitchtv.v2+json")
+	req.Header.Set("Accept", "application/vnd.twitchtv.v3+json")
 	req.Close = true
 
 	resp, err := httpclient.Do(req)
@@ -42,12 +42,63 @@ func RawTwitchRequest(url string) (*http.Response, error) {
 	return resp, err
 
 }
-func TwitchRequest(method string, data url.Values) (*http.Response, error) {
+
+type TwitchRequest struct {
+	nexturl string
+	err     error
+}
+
+func NewTwitchRequest(method string, data ...url.Values) *TwitchRequest {
 	url := twitchApiUrl
 	url.Path += method
-	url.RawQuery = data.Encode()
+	if len(data) == 1 {
+		url.RawQuery = data[0].Encode()
+	}
+	return &TwitchRequest{nexturl: url.String()}
+}
 
-	return RawTwitchRequest(url.String())
+func (tr *TwitchRequest) Scan(s Nexter) bool {
+	if tr.nexturl == "" {
+		return false
+	}
+
+	var resp *http.Response
+	resp, tr.err = RawTwitchRequest(tr.nexturl)
+	if tr.err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	tr.err = json.NewDecoder(resp.Body).Decode(s)
+	if tr.err != nil {
+		return false
+	}
+
+	tr.nexturl = s.Next()
+	if tr.nexturl == "" {
+		tr.err = nil
+		return false
+	}
+
+	return true
+}
+
+func (tr *TwitchRequest) Err() error {
+	return tr.err
+}
+
+type Nexter interface {
+	Next() string
+}
+
+type Links struct {
+	Links struct {
+		Next string `json:"next"`
+	} `json:"_links"`
+}
+
+func (l Links) Next() string {
+	return l.Links.Next
 }
 
 type twitchstream struct {
@@ -68,6 +119,17 @@ func (t twitchstream) Game() string {
 }
 func (t twitchstream) Viewers() int {
 	return t.viewers
+}
+
+type Channel struct {
+	Name   string
+	Status string
+}
+
+type Stream struct {
+	Game    string
+	Viewers int
+	Channel `json:"channel"`
 }
 
 func LoadFavs() (names []string) {
@@ -109,37 +171,21 @@ func GameName(name string) url.Values {
 	}
 }
 
-func GetChannels(data url.Values) (chans Chans, err error) {
+func GetChannels(data url.Values) (Chans, error) {
+	type twitchresponse struct {
+		Streams []Stream `json:"streams"`
+		Links
+	}
+
 	const limit = 100
 	data["limit"] = []string{strconv.Itoa(limit)}
+	tr := NewTwitchRequest("streams", data)
+	resp := twitchresponse{}
 
-	resp, err := TwitchRequest("streams", data)
+	var chans Chans
 
-	type inner struct {
-		Name   string
-		Status string
-	}
-	type stream struct {
-		Game    string
-		Viewers int
-		inner   `json:"Channel"`
-	}
-	type links struct {
-		Next *string
-	}
-	type twitchresponse struct {
-		Streams *[]stream
-		Links   links `json:"_links"`
-	}
-
-	streams := []stream{}
-	var next string
-
-	for err == nil {
-		err = json.NewDecoder(resp.Body).Decode(&twitchresponse{&streams, links{&next}})
-		resp.Body.Close()
-
-		for _, stream := range streams {
+	for tr.Scan(&resp) {
+		for _, stream := range resp.Streams {
 			chans = append(chans, &twitchstream{
 				streamer:    stream.Name,
 				description: stream.Status,
@@ -147,12 +193,12 @@ func GetChannels(data url.Values) (chans Chans, err error) {
 				viewers:     stream.Viewers,
 			})
 		}
-		if len(streams) < limit {
+		if len(resp.Streams) < limit {
 			break
 		}
-		resp, err = RawTwitchRequest(next)
 	}
-	return
+
+	return chans, tr.Err()
 }
 
 func GetGameFunc(name string) func() (Chans, error) {
