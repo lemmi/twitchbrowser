@@ -159,6 +159,18 @@ func GetFavChannels() (chans Chans, err error) {
 	return GetChannels(ChannelNames(LoadFavs()))
 }
 
+func GetFollowChannels(user string) func() (Chans, error) {
+	names, err := GetFollows(user)
+	if err != nil {
+		return func() (Chans, error) {
+			return nil, err
+		}
+	}
+	return func() (Chans, error) {
+		return GetChannels(ChannelNames(names))
+	}
+}
+
 func ChannelNames(names []string) url.Values {
 	return url.Values{
 		"channel": []string{strings.Join(names, ",")},
@@ -199,6 +211,32 @@ func GetChannels(data url.Values) (Chans, error) {
 	}
 
 	return chans, tr.Err()
+}
+
+func GetFollows(user string) ([]string, error) {
+	tr := NewTwitchRequest("/users/" + user + "/follows/channels")
+
+	type followsresp struct {
+		Follows []struct {
+			Channel Channel
+		}
+		Links
+	}
+
+	ret := []string{}
+	resp := followsresp{}
+
+	for tr.Scan(&resp) {
+		if len(resp.Follows) == 0 {
+			break
+		}
+
+		for _, follow := range resp.Follows {
+			ret = append(ret, follow.Channel.Name)
+		}
+	}
+
+	return ret, tr.Err()
 }
 
 func GetGameFunc(name string) func() (Chans, error) {
