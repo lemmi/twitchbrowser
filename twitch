@@ -30,4 +30,5 @@ elif [[ "$nonline" -gt "1" ]]; then
 		break
 	done
 fi
-[[ -n "$stream" ]] && livestreamer twitch.tv/"$stream"
+#[[ -n "$stream" ]] && livestreamer twitch.tv/"$stream"
+[[ -n "$stream" ]] && mpv --fs  http://twitch.tv/"$stream"
