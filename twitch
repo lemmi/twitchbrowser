@@ -1,7 +1,6 @@
 #!/bin/bash --debugger
 
 listonline () {
-	#parallel --bar -j+8 livestreamer -Q "{1}{2}" "&>/dev/null" "&&" echo "{1}{2}" ::: twitch.tv/ ::: "${@,,}"
 	twitchbrowser -names "${@,,}" 
 }
 
@@ -30,5 +29,5 @@ elif [[ "$nonline" -gt "1" ]]; then
 		break
 	done
 fi
-#[[ -n "$stream" ]] && livestreamer twitch.tv/"$stream"
-[[ -n "$stream" ]] && mpv --fs  http://twitch.tv/"$stream"
+
+[[ -n "$stream" ]] && mpv --fs  https://twitch.tv/"$stream"
