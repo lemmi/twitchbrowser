@@ -8,6 +8,9 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+
+	"github.com/lemmi/twitchbrowser/twitch"
+	"github.com/lemmi/twitchbrowser/twitch/apiv3"
 )
 
 const (
@@ -15,27 +18,27 @@ const (
 	termReset = "\033[00m"
 )
 
-func printChans(chans Chans) {
+func printChans(chans twitch.Channels) {
 	sort.Sort(chans)
 
 	lastgame := ""
 	for _, ch := range chans {
-		if lastgame != ch.Game() {
-			fmt.Printf("\n%s%s%s:\n", termEmph, ch.Game(), termReset)
+		if lastgame != ch.Game {
+			fmt.Printf("\n%s%s%s:\n", termEmph, ch.Game, termReset)
 		}
-		lastgame = ch.Game()
-		fmt.Printf("  %-20s %4d: %s\n", ch.Streamer(), ch.Viewers(), strings.TrimSpace(ch.Description()))
+		lastgame = ch.Game
+		fmt.Printf("  %-20s %4d: %s\n", ch.Streamer, ch.Viewers, strings.TrimSpace(ch.Description))
 	}
 }
 
-func printNames(chans Chans) {
+func printNames(chans twitch.Channels) {
 	for _, ch := range chans {
-		fmt.Println(ch.Streamer())
+		fmt.Println(ch.Streamer)
 	}
 }
 
-func asyncCall(reallycall bool, f func() (Chans, error)) <-chan Chans {
-	ch := make(chan Chans)
+func asyncCall(reallycall bool, f func() (twitch.Channels, error)) <-chan twitch.Channels {
+	ch := make(chan twitch.Channels)
 	if reallycall {
 		go func() {
 			chans, err := f()
@@ -52,7 +55,7 @@ func asyncCall(reallycall bool, f func() (Chans, error)) <-chan Chans {
 	return ch
 }
 
-func doPrint(chans Chans, title string, c *cliConfig) {
+func doPrint(chans twitch.Channels, title string, c *cliConfig) {
 	if len(chans) == 0 {
 		return
 	}
@@ -161,16 +164,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var api twitchAPI
+	var api twitch.API
 	if id, ok := cfile["Client-ID"]; ok && len(id) == 1 {
-		api = newtwitchAPI(id[0])
+		api = apiv3.New(id[0])
 	} else {
 		log.Fatal("no Client-ID provided")
 	}
 
-	favchan := asyncCall(conf.EnableFAV(), api.GetChannelsFunc(cfile[""]))
-	srlchan := asyncCall(conf.EnableSRL(), api.GetChannelsFunc(getSRLNames()))
-	customchan := asyncCall(conf.nargs > 0, api.GetChannelsFunc(conf.names))
+	favchan := asyncCall(conf.EnableFAV(), twitch.GetChannelsFunc(api, cfile[""]))
+	srlchan := asyncCall(conf.EnableSRL(), twitch.GetChannelsFunc(api, getSRLNames()))
+	customchan := asyncCall(conf.nargs > 0, twitch.GetChannelsFunc(api, conf.names))
 
 	doPrint(<-favchan, "FAV", conf)
 	doPrint(<-srlchan, "SRL", conf)

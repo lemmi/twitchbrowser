@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/lemmi/twitchbrowser/twitch"
 )
 
 func printHTMLHeader() {
@@ -15,21 +17,21 @@ func printHTMLHeader() {
 	fmt.Println("<body>")
 }
 
-func printHTML(chans Chans) {
+func printHTML(chans twitch.Channels) {
 	sort.Sort(chans)
 
 	lastgame := ""
 	fmt.Println("<ul>")
 	for _, ch := range chans {
-		if lastgame != ch.Game() {
+		if lastgame != ch.Game {
 			if lastgame != "" {
 				fmt.Println("\t</ul>")
 			}
-			fmt.Printf("<li><b>%s:</b></li>\n", ch.Game())
+			fmt.Printf("<li><b>%s:</b></li>\n", ch.Game)
 			fmt.Println("\t<ul>")
 		}
-		lastgame = ch.Game()
-		fmt.Printf("\t\t<li>%-20s %4d: %s</li>\n", ch.Streamer(), ch.Viewers(), strings.TrimSpace(ch.Description()))
+		lastgame = ch.Game
+		fmt.Printf("\t\t<li>%-20s %4d: %s</li>\n", ch.Streamer, ch.Viewers, strings.TrimSpace(ch.Description))
 	}
 	fmt.Println("\t</ul>")
 	fmt.Println("</ul>")

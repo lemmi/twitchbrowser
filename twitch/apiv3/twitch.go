@@ -1,4 +1,4 @@
-package main
+package apiv3
 
 import (
 	"encoding/json"
@@ -7,17 +7,21 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/lemmi/twitchbrowser/twitch"
 	"github.com/pkg/errors"
 )
 
-type twitchAPI struct {
+var _ twitch.API = apiv3{}
+
+type apiv3 struct {
 	endpoint url.URL
 	client   *http.Client
 	headers  http.Header
 }
 
-func newtwitchAPI(clientID string) twitchAPI {
-	return twitchAPI{
+// New returns a twitch.API that implements the twitch v3 api
+func New(clientID string) twitch.API {
+	return apiv3{
 		endpoint: url.URL{
 			Scheme: "https",
 			Host:   "api.twitch.tv",
@@ -31,7 +35,7 @@ func newtwitchAPI(clientID string) twitchAPI {
 	}
 }
 
-func (api twitchAPI) RawTwitchRequest(url string, clientID string) (*http.Response, error) {
+func (api apiv3) rawTwitchRequest(url string, clientID string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -52,13 +56,13 @@ func (api twitchAPI) RawTwitchRequest(url string, clientID string) (*http.Respon
 }
 
 type twitchRequest struct {
-	api      twitchAPI
+	api      apiv3
 	clientID string
 	nexturl  string
 	err      error
 }
 
-func (api twitchAPI) NewTwitchRequest(method string, data ...url.Values) *twitchRequest {
+func (api apiv3) newTwitchRequest(method string, data ...url.Values) *twitchRequest {
 	url := api.endpoint
 	url.Path += method
 	if len(data) == 1 {
@@ -73,7 +77,7 @@ func (tr *twitchRequest) Scan(s nexter) bool {
 	}
 
 	var resp *http.Response
-	resp, tr.err = tr.api.RawTwitchRequest(tr.nexturl, tr.clientID)
+	resp, tr.err = tr.api.rawTwitchRequest(tr.nexturl, tr.clientID)
 	if tr.err != nil {
 		return false
 	}
@@ -113,26 +117,6 @@ func (l Links) Next() string {
 	return l.Links.Next
 }
 
-type twitchstream struct {
-	streamer    string
-	description string
-	game        string
-	viewers     int
-}
-
-func (t twitchstream) Streamer() string {
-	return t.streamer
-}
-func (t twitchstream) Description() string {
-	return t.description
-}
-func (t twitchstream) Game() string {
-	return t.game
-}
-func (t twitchstream) Viewers() int {
-	return t.viewers
-}
-
 // Channel holds channel info
 type Channel struct {
 	Name   string
@@ -152,26 +136,27 @@ func channelNames(names []string) url.Values {
 	}
 }
 
-func (api twitchAPI) GetChannels(data url.Values) (Chans, error) {
+func (api apiv3) GetChannels(names []string) (twitch.Channels, error) {
 	type twitchresponse struct {
 		Streams []Stream `json:"streams"`
 		Links
 	}
 
+	data := channelNames(names)
 	const limit = 100
 	data["limit"] = []string{strconv.Itoa(limit)}
-	tr := api.NewTwitchRequest("streams", data)
+	tr := api.newTwitchRequest("streams", data)
 	resp := twitchresponse{}
 
-	var chans Chans
+	var chans twitch.Channels
 
 	for tr.Scan(&resp) {
 		for _, stream := range resp.Streams {
-			chans = append(chans, &twitchstream{
-				streamer:    stream.Name,
-				description: stream.Status,
-				game:        stream.Game,
-				viewers:     stream.Viewers,
+			chans = append(chans, twitch.Channel{
+				Streamer:    stream.Name,
+				Description: stream.Status,
+				Game:        stream.Game,
+				Viewers:     stream.Viewers,
 			})
 		}
 		if len(resp.Streams) < limit {
@@ -180,10 +165,4 @@ func (api twitchAPI) GetChannels(data url.Values) (Chans, error) {
 	}
 
 	return chans, tr.Err()
-}
-
-func (api twitchAPI) GetChannelsFunc(names []string) func() (Chans, error) {
-	return func() (Chans, error) {
-		return api.GetChannels(channelNames(names))
-	}
 }
