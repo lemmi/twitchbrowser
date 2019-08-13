@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lemmi/closer"
 	"github.com/lemmi/twitchbrowser/twitch"
 	"github.com/lemmi/twitchbrowser/twitch/apiv3"
 )
@@ -183,7 +184,7 @@ func main() {
 		printHTMLFooter()
 	}
 
-	os.Stdout.Close()
+	closer.Do(os.Stdout)
 	if conf.pager != nil {
 		if err := conf.pager.Wait(); err != nil {
 			panic(err)

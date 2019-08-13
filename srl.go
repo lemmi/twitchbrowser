@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"html"
 	"net/http"
+
+	"github.com/lemmi/closer"
 )
 
 const (
@@ -15,7 +17,7 @@ func getSRLNames() (twitchnames []string) {
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer closer.Do(resp.Body)
 
 	t := struct {
 		Source struct {

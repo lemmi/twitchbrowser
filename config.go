@@ -10,6 +10,7 @@ import (
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
+	"github.com/lemmi/closer"
 	"github.com/pkg/errors"
 )
 
@@ -104,7 +105,7 @@ func loadConfigFile() (configFile, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to open file %q", path)
 	}
-	defer file.Close()
+	defer closer.Do(file)
 
 	return parseConfig(file)
 }

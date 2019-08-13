@@ -2,10 +2,12 @@ package twitch
 
 import "strings"
 
+// API provides read only access to the twitch api
 type API interface {
 	GetChannels(names []string) (Channels, error)
 }
 
+// GetChannelsFunc wraps the GetChannels call for asny scheduling
 func GetChannelsFunc(api API, names []string) func() (Channels, error) {
 	return func() (Channels, error) {
 		return api.GetChannels(names)

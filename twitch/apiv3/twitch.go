@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/lemmi/closer"
 	"github.com/lemmi/twitchbrowser/twitch"
 	"github.com/pkg/errors"
 )
@@ -35,7 +36,34 @@ func New(clientID string) twitch.API {
 	}
 }
 
-func (api apiv3) rawTwitchRequest(url string, clientID string) (*http.Response, error) {
+func (api apiv3) GetChannels(names []string) (twitch.Channels, error) {
+	data := make(url.Values)
+	data.Add("channel", strings.Join(names, ","))
+	const limit = 100
+	data.Set("limit", strconv.Itoa(limit))
+	tr := api.newTwitchRequest("streams", data)
+	resp := twitchresponse{}
+
+	var chans twitch.Channels
+
+	for tr.scan(&resp) {
+		for _, stream := range resp.Streams {
+			chans = append(chans, twitch.Channel{
+				Streamer:    stream.Name,
+				Description: stream.Status,
+				Game:        stream.Game,
+				Viewers:     stream.Viewers,
+			})
+		}
+		if len(resp.Streams) < limit {
+			break
+		}
+	}
+
+	return chans, tr.err
+}
+
+func (api apiv3) doRequest(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -56,10 +84,9 @@ func (api apiv3) rawTwitchRequest(url string, clientID string) (*http.Response, 
 }
 
 type twitchRequest struct {
-	api      apiv3
-	clientID string
-	nexturl  string
-	err      error
+	api     apiv3
+	nexturl string
+	err     error
 }
 
 func (api apiv3) newTwitchRequest(method string, data ...url.Values) *twitchRequest {
@@ -71,50 +98,30 @@ func (api apiv3) newTwitchRequest(method string, data ...url.Values) *twitchRequ
 	return &twitchRequest{api: api, nexturl: url.String()}
 }
 
-func (tr *twitchRequest) Scan(s nexter) bool {
+func (tr *twitchRequest) scan(tresp *twitchresponse) bool {
 	if tr.nexturl == "" {
 		return false
 	}
 
 	var resp *http.Response
-	resp, tr.err = tr.api.rawTwitchRequest(tr.nexturl, tr.clientID)
+	resp, tr.err = tr.api.doRequest(tr.nexturl)
 	if tr.err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer closer.Do(resp.Body)
 
-	tr.err = json.NewDecoder(resp.Body).Decode(s)
+	tr.err = json.NewDecoder(resp.Body).Decode(tresp)
 	if tr.err != nil {
 		return false
 	}
 
-	tr.nexturl = s.Next()
+	tr.nexturl = tresp.Links.Next
 	if tr.nexturl == "" {
 		tr.err = nil
 		return false
 	}
 
 	return true
-}
-
-func (tr *twitchRequest) Err() error {
-	return tr.err
-}
-
-type nexter interface {
-	Next() string
-}
-
-// Links holds info for pagination
-type Links struct {
-	Links struct {
-		Next string `json:"next"`
-	} `json:"_links"`
-}
-
-// Next returns the link for the next page
-func (l Links) Next() string {
-	return l.Links.Next
 }
 
 // Channel holds channel info
@@ -130,39 +137,9 @@ type Stream struct {
 	Channel `json:"channel"`
 }
 
-func channelNames(names []string) url.Values {
-	return url.Values{
-		"channel": []string{strings.Join(names, ",")},
-	}
-}
-
-func (api apiv3) GetChannels(names []string) (twitch.Channels, error) {
-	type twitchresponse struct {
-		Streams []Stream `json:"streams"`
-		Links
-	}
-
-	data := channelNames(names)
-	const limit = 100
-	data["limit"] = []string{strconv.Itoa(limit)}
-	tr := api.newTwitchRequest("streams", data)
-	resp := twitchresponse{}
-
-	var chans twitch.Channels
-
-	for tr.Scan(&resp) {
-		for _, stream := range resp.Streams {
-			chans = append(chans, twitch.Channel{
-				Streamer:    stream.Name,
-				Description: stream.Status,
-				Game:        stream.Game,
-				Viewers:     stream.Viewers,
-			})
-		}
-		if len(resp.Streams) < limit {
-			break
-		}
-	}
-
-	return chans, tr.Err()
+type twitchresponse struct {
+	Streams []Stream `json:"streams"`
+	Links   struct {
+		Next string `json:"next"`
+	} `json:"_links"`
 }
