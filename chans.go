@@ -4,6 +4,7 @@ import (
 	"strings"
 )
 
+// Channeler abstracts various Channel-like structs
 type Channeler interface {
 	Streamer() string
 	Description() string
@@ -11,6 +12,7 @@ type Channeler interface {
 	Viewers() int
 }
 
+// Chans is used to sort []Channeler
 type Chans []Channeler
 
 func (chans Chans) Len() int {

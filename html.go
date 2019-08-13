@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func PrintHtmlHeader() {
+func printHTMLHeader() {
 	fmt.Println("<html>")
 	fmt.Println("<head>")
 	fmt.Println("\t<meta charset=\"UTF-8\">")
@@ -15,7 +15,7 @@ func PrintHtmlHeader() {
 	fmt.Println("<body>")
 }
 
-func PrintHtml(chans Chans) {
+func printHTML(chans Chans) {
 	sort.Sort(chans)
 
 	lastgame := ""
@@ -35,7 +35,7 @@ func PrintHtml(chans Chans) {
 	fmt.Println("</ul>")
 }
 
-func PrintHtmlFooter() {
+func printHTMLFooter() {
 	fmt.Println("</body>")
 	fmt.Println("</html>")
 }

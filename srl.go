@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	srlApiUrl = "http://api.speedrunslive.com/frontend/streams"
+	srlAPIURL = "http://api.speedrunslive.com/frontend/streams"
 )
 
-func GetSRLNames() (twitchnames []string) {
-	resp, err := http.Get(srlApiUrl)
+func getSRLNames() (twitchnames []string) {
+	resp, err := http.Get(srlAPIURL)
 	if err != nil {
 		return
 	}

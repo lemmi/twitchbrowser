@@ -1,69 +1,79 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/url"
-	"os"
-	"os/user"
-	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
-var (
-	httpclient = http.Client{
-		Transport: &http.Transport{
-		//TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+type twitchAPI struct {
+	endpoint url.URL
+	client   *http.Client
+	headers  http.Header
+}
+
+func newtwitchAPI(clientID string) twitchAPI {
+	return twitchAPI{
+		endpoint: url.URL{
+			Scheme: "https",
+			Host:   "api.twitch.tv",
+			Path:   "/kraken/",
+		},
+		client: &http.Client{},
+		headers: http.Header{
+			"Client-ID": []string{clientID},
+			"Accept":    []string{"application/vnd.twitchtv.v3+json"},
 		},
 	}
-	twitchApiUrl = url.URL{
-		Scheme: "https",
-		Host:   "api.twitch.tv",
-		Path:   "/kraken/",
-	}
-)
+}
 
-func RawTwitchRequest(url string) (*http.Response, error) {
+func (api twitchAPI) RawTwitchRequest(url string, clientID string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-ID", "browser")
-	req.Header.Set("Accept", "application/vnd.twitchtv.v3+json")
+
+	for k, vs := range api.headers {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
+	}
 	req.Close = true
 
-	resp, err := httpclient.Do(req)
+	resp, err := api.client.Do(req)
 	if resp != nil && resp.StatusCode != 200 {
 		err = errors.New(resp.Status)
 	}
 	return resp, err
-
 }
 
-type TwitchRequest struct {
-	nexturl string
-	err     error
+type twitchRequest struct {
+	api      twitchAPI
+	clientID string
+	nexturl  string
+	err      error
 }
 
-func NewTwitchRequest(method string, data ...url.Values) *TwitchRequest {
-	url := twitchApiUrl
+func (api twitchAPI) NewTwitchRequest(method string, data ...url.Values) *twitchRequest {
+	url := api.endpoint
 	url.Path += method
 	if len(data) == 1 {
 		url.RawQuery = data[0].Encode()
 	}
-	return &TwitchRequest{nexturl: url.String()}
+	return &twitchRequest{api: api, nexturl: url.String()}
 }
 
-func (tr *TwitchRequest) Scan(s Nexter) bool {
+func (tr *twitchRequest) Scan(s nexter) bool {
 	if tr.nexturl == "" {
 		return false
 	}
 
 	var resp *http.Response
-	resp, tr.err = RawTwitchRequest(tr.nexturl)
+	resp, tr.err = tr.api.RawTwitchRequest(tr.nexturl, tr.clientID)
 	if tr.err != nil {
 		return false
 	}
@@ -83,20 +93,22 @@ func (tr *TwitchRequest) Scan(s Nexter) bool {
 	return true
 }
 
-func (tr *TwitchRequest) Err() error {
+func (tr *twitchRequest) Err() error {
 	return tr.err
 }
 
-type Nexter interface {
+type nexter interface {
 	Next() string
 }
 
+// Links holds info for pagination
 type Links struct {
 	Links struct {
 		Next string `json:"next"`
 	} `json:"_links"`
 }
 
+// Next returns the link for the next page
 func (l Links) Next() string {
 	return l.Links.Next
 }
@@ -121,69 +133,26 @@ func (t twitchstream) Viewers() int {
 	return t.viewers
 }
 
+// Channel holds channel info
 type Channel struct {
 	Name   string
 	Status string
 }
 
+// Stream holds stream info
 type Stream struct {
 	Game    string
 	Viewers int
 	Channel `json:"channel"`
 }
 
-func LoadFavs() (names []string) {
-	user, err := user.Current()
-	if err != nil {
-		return
-	}
-
-	path := filepath.Join(user.HomeDir, ".config", "twitchbrowser", "favorites.conf")
-	file, err := os.Open(path)
-	if err != nil {
-		return
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		name := strings.TrimSpace(scanner.Text())
-		if len(name) > 0 {
-			names = append(names, name)
-		}
-	}
-	return
-}
-
-func GetFavChannels() (chans Chans, err error) {
-	return GetChannels(ChannelNames(LoadFavs()))
-}
-
-func GetFollowChannels(user string) func() (Chans, error) {
-	names, err := GetFollows(user)
-	if err != nil {
-		return func() (Chans, error) {
-			return nil, err
-		}
-	}
-	return func() (Chans, error) {
-		return GetChannels(ChannelNames(names))
-	}
-}
-
-func ChannelNames(names []string) url.Values {
+func channelNames(names []string) url.Values {
 	return url.Values{
 		"channel": []string{strings.Join(names, ",")},
 	}
 }
 
-func GameName(name string) url.Values {
-	return url.Values{
-		"game": []string{name},
-	}
-}
-
-func GetChannels(data url.Values) (Chans, error) {
+func (api twitchAPI) GetChannels(data url.Values) (Chans, error) {
 	type twitchresponse struct {
 		Streams []Stream `json:"streams"`
 		Links
@@ -191,7 +160,7 @@ func GetChannels(data url.Values) (Chans, error) {
 
 	const limit = 100
 	data["limit"] = []string{strconv.Itoa(limit)}
-	tr := NewTwitchRequest("streams", data)
+	tr := api.NewTwitchRequest("streams", data)
 	resp := twitchresponse{}
 
 	var chans Chans
@@ -213,39 +182,8 @@ func GetChannels(data url.Values) (Chans, error) {
 	return chans, tr.Err()
 }
 
-func GetFollows(user string) ([]string, error) {
-	tr := NewTwitchRequest("/users/" + user + "/follows/channels")
-
-	type followsresp struct {
-		Follows []struct {
-			Channel Channel
-		}
-		Links
-	}
-
-	ret := []string{}
-	resp := followsresp{}
-
-	for tr.Scan(&resp) {
-		if len(resp.Follows) == 0 {
-			break
-		}
-
-		for _, follow := range resp.Follows {
-			ret = append(ret, follow.Channel.Name)
-		}
-	}
-
-	return ret, tr.Err()
-}
-
-func GetGameFunc(name string) func() (Chans, error) {
+func (api twitchAPI) GetChannelsFunc(names []string) func() (Chans, error) {
 	return func() (Chans, error) {
-		return GetChannels(GameName(name))
-	}
-}
-func GetChannelsFunc(names []string) func() (Chans, error) {
-	return func() (Chans, error) {
-		return GetChannels(ChannelNames(names))
+		return api.GetChannels(channelNames(names))
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"sort"
@@ -10,30 +11,30 @@ import (
 )
 
 const (
-	TermEmph  = "\033[01;37m"
-	TermReset = "\033[00m"
+	termEmph  = "\033[01;37m"
+	termReset = "\033[00m"
 )
 
-func PrintChans(chans Chans) {
+func printChans(chans Chans) {
 	sort.Sort(chans)
 
 	lastgame := ""
 	for _, ch := range chans {
 		if lastgame != ch.Game() {
-			fmt.Printf("\n%s%s%s:\n", TermEmph, ch.Game(), TermReset)
+			fmt.Printf("\n%s%s%s:\n", termEmph, ch.Game(), termReset)
 		}
 		lastgame = ch.Game()
 		fmt.Printf("  %-20s %4d: %s\n", ch.Streamer(), ch.Viewers(), strings.TrimSpace(ch.Description()))
 	}
 }
 
-func PrintNames(chans Chans) {
+func printNames(chans Chans) {
 	for _, ch := range chans {
 		fmt.Println(ch.Streamer())
 	}
 }
 
-func AsyncCall(reallycall bool, f func() (Chans, error)) <-chan Chans {
+func asyncCall(reallycall bool, f func() (Chans, error)) <-chan Chans {
 	ch := make(chan Chans)
 	if reallycall {
 		go func() {
@@ -51,23 +52,23 @@ func AsyncCall(reallycall bool, f func() (Chans, error)) <-chan Chans {
 	return ch
 }
 
-func Print(chans Chans, title string, c *Config) {
+func doPrint(chans Chans, title string, c *cliConfig) {
 	if len(chans) == 0 {
 		return
 	}
 	if c.Onlynames() {
-		PrintNames(chans)
+		printNames(chans)
 	} else if c.EnableHTML() {
-		PrintHtml(chans)
+		printHTML(chans)
 	} else {
 		fmt.Println()
 		fmt.Println(title)
-		PrintChans(chans)
+		printChans(chans)
 	}
 }
 
-func HavePager() (cmd *exec.Cmd) {
-	if !IsTerminal(os.Stdout.Fd()) {
+func havePager() (cmd *exec.Cmd) {
+	if !isTerminal(os.Stdout.Fd()) {
 		return
 	}
 	pager := os.Getenv("PAGER")
@@ -87,7 +88,7 @@ func HavePager() (cmd *exec.Cmd) {
 	return
 }
 
-func SetOutput(c *Config) {
+func setOutput(c *cliConfig) {
 	if c.EnableHTML() {
 		if file, err := os.Create(c.HTMLFileName()); err == nil {
 			os.Stdout = file
@@ -97,11 +98,11 @@ func SetOutput(c *Config) {
 	}
 
 	if !c.Onlynames() && !c.EnableHTML() {
-		c.pager = HavePager()
+		c.pager = havePager()
 	}
 }
 
-type Config struct {
+type cliConfig struct {
 	enablefav bool
 	enablesrl bool
 	onlynames bool
@@ -112,30 +113,30 @@ type Config struct {
 	nargs int
 }
 
-func (c *Config) EnableFAV() bool {
+func (c *cliConfig) EnableFAV() bool {
 	return c.enablefav
 }
-func (c *Config) EnableSRL() bool {
+func (c *cliConfig) EnableSRL() bool {
 	return c.enablesrl
 }
-func (c *Config) Onlynames() bool {
+func (c *cliConfig) Onlynames() bool {
 	return c.onlynames
 }
-func (c *Config) EnableHTML() bool {
+func (c *cliConfig) EnableHTML() bool {
 	return c.html != ""
 }
-func (c *Config) HTMLFileName() string {
+func (c *cliConfig) HTMLFileName() string {
 	return c.html
 }
-func (c *Config) setDefaultBehaviour() {
+func (c *cliConfig) setDefaultBehaviour() {
 	if !c.enablesrl && !c.enablefav && flag.NArg() == 0 {
 		c.enablesrl = true
 		c.enablefav = true
 	}
 }
 
-func GetConfig() *Config {
-	conf := Config{}
+func getCliConfig() *cliConfig {
+	conf := cliConfig{}
 	flag.BoolVar(&conf.enablefav, "fav", false, "collect favorite channels")
 	flag.BoolVar(&conf.enablesrl, "srl", false, "collect srl channels")
 	flag.BoolVar(&conf.onlynames, "names", false, "show only online names")
@@ -148,27 +149,35 @@ func GetConfig() *Config {
 }
 
 func main() {
-	conf := GetConfig()
-	SetOutput(conf)
+	conf := getCliConfig()
+	setOutput(conf)
 
 	if conf.EnableHTML() {
-		PrintHtmlHeader()
+		printHTMLHeader()
 	}
 
-	favchan := AsyncCall(conf.EnableFAV(), GetFavChannels)
-	//followchan := AsyncCall(conf.EnableFAV(), GetFollowChannels("username"))
-	srlchan := AsyncCall(conf.EnableSRL(), GetChannelsFunc(GetSRLNames()))
-	customchan := AsyncCall(conf.nargs > 0, GetChannelsFunc(conf.names))
-	//customgamechan := AsyncCall(true, GetGameFunc("FTL: Faster Than Light"))
+	cfile, err := loadConfigFile()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	//Print(<-followchan, "FOLLOW", conf)
-	Print(<-favchan, "FAV", conf)
-	Print(<-srlchan, "SRL", conf)
-	Print(<-customchan, "CUSTOM", conf)
-	//Print(<-customgamechan, "CUSTOMGAME", *onlynames)
+	var api twitchAPI
+	if id, ok := cfile["Client-ID"]; ok && len(id) == 1 {
+		api = newtwitchAPI(id[0])
+	} else {
+		log.Fatal("no Client-ID provided")
+	}
+
+	favchan := asyncCall(conf.EnableFAV(), api.GetChannelsFunc(cfile[""]))
+	srlchan := asyncCall(conf.EnableSRL(), api.GetChannelsFunc(getSRLNames()))
+	customchan := asyncCall(conf.nargs > 0, api.GetChannelsFunc(conf.names))
+
+	doPrint(<-favchan, "FAV", conf)
+	doPrint(<-srlchan, "SRL", conf)
+	doPrint(<-customchan, "CUSTOM", conf)
 
 	if conf.EnableHTML() {
-		PrintHtmlFooter()
+		printHTMLFooter()
 	}
 
 	os.Stdout.Close()
