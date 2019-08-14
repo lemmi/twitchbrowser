@@ -11,7 +11,7 @@ import (
 
 	"github.com/lemmi/closer"
 	"github.com/lemmi/twitchbrowser/twitch"
-	"github.com/lemmi/twitchbrowser/twitch/apiv3"
+	"github.com/lemmi/twitchbrowser/twitch/apinew"
 )
 
 const (
@@ -167,7 +167,7 @@ func main() {
 
 	var api twitch.API
 	if id, ok := cfile["Client-ID"]; ok && len(id) == 1 {
-		api = apiv3.New(id[0])
+		api = apinew.New(id[0])
 	} else {
 		log.Fatal("no Client-ID provided")
 	}
