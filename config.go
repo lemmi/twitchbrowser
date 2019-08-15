@@ -29,19 +29,19 @@ var (
 
 // TwitchConfig is the structure of the config file
 type TwitchConfig struct {
-	Entry   Entries   `@@`
-	Section []Section `@@*`
+	Entry   Entries   `parser:"@@"`
+	Section []Section `parser:"@@*"`
 }
 
 // Section represents a section within a config file
 type Section struct {
-	Name  string  `"[" @Ident "]"`
-	Entry Entries `@@`
+	Name  string  `parser:"\"[\" @Ident \"]\""`
+	Entry Entries `parser:"@@"`
 }
 
 // Entries contains all entries within a section
 type Entries struct {
-	Value []string `@Ident*`
+	Value []string `parser:"@Ident*"`
 }
 
 func (t TwitchConfig) config() configFile {
