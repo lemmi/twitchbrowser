@@ -20,7 +20,7 @@ const (
 )
 
 func printChans(chans twitch.Channels) {
-	sort.Sort(chans)
+	sort.Slice(chans, chans.Less)
 
 	lastgame := ""
 	for _, ch := range chans {

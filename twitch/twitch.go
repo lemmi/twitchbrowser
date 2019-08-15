@@ -30,6 +30,9 @@ func (chans Channels) Len() int {
 }
 
 func (chans Channels) Less(i, j int) bool {
+	Eq := func(a, b string) bool {
+		return strings.ToLower(a) == strings.ToLower(b)
+	}
 	Less := func(a, b string) bool {
 		return strings.ToLower(a) < strings.ToLower(b)
 	}
@@ -37,24 +40,14 @@ func (chans Channels) Less(i, j int) bool {
 	chi := chans[i]
 	chj := chans[j]
 	switch {
-	case Less(chi.Game, chj.Game):
-		return true
-	case Less(chj.Game, chi.Game):
-		return false
-	case chi.Viewers > chj.Viewers:
-		return true
-	case chi.Viewers < chj.Viewers:
-		return false
-	case Less(chi.Streamer, chj.Streamer):
-		return true
-	case Less(chj.Streamer, chi.Streamer):
-		return false
-	case Less(chi.Description, chj.Description):
-		return true
-	case Less(chj.Description, chi.Description):
-		return false
+	case !Eq(chi.Game, chj.Game):
+		return Less(chi.Game, chj.Game)
+	case chi.Viewers != chj.Viewers:
+		return chi.Viewers > chj.Viewers
+	case !Eq(chi.Streamer, chj.Streamer):
+		return Less(chi.Streamer, chj.Streamer)
 	default:
-		return false
+		return Less(chi.Description, chj.Description)
 	}
 }
 

@@ -18,7 +18,7 @@ func printHTMLHeader() {
 }
 
 func printHTML(chans twitch.Channels) {
-	sort.Sort(chans)
+	sort.Slice(chans, chans.Less)
 
 	lastgame := ""
 	fmt.Println("<ul>")
