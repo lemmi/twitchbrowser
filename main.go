@@ -166,11 +166,17 @@ func main() {
 	}
 
 	var api twitch.API
-	if id, ok := cfile["Client-ID"]; ok && len(id) == 1 {
-		api = apinew.New(id[0])
-	} else {
+	var id []string
+	var secret []string
+	var ok bool
+	if id, ok = cfile["Client-ID"]; !ok || len(id) != 1 {
 		log.Fatal("no Client-ID provided")
 	}
+	if secret, ok = cfile["Client-Secret"]; !ok || len(secret) != 1 {
+		log.Fatal("no Client-Secret provided")
+	}
+
+	api = apinew.New(id[0], secret[0])
 
 	favchan := asyncCall(conf.EnableFAV(), twitch.GetChannelsFunc(api, cfile[""]))
 	srlchan := asyncCall(conf.EnableSRL(), twitch.GetChannelsFunc(api, getSRLNames()))

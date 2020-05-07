@@ -1,6 +1,7 @@
 package apinew
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -11,6 +12,8 @@ import (
 	"github.com/lemmi/closer"
 	"github.com/lemmi/twitchbrowser/twitch"
 	"github.com/pkg/errors"
+	"golang.org/x/oauth2/clientcredentials"
+	oauth2twitch "golang.org/x/oauth2/twitch"
 )
 
 var (
@@ -30,12 +33,17 @@ type apinew struct {
 	game map[string]string
 }
 
-func New(clientID string) twitch.API {
+func New(clientID string, secret string) twitch.API {
+	oauth2Config := clientcredentials.Config{
+		ClientID:     clientID,
+		ClientSecret: secret,
+		TokenURL:     oauth2twitch.Endpoint.TokenURL,
+	}
 	return apinew{
 		headers: http.Header{
 			"Client-ID": []string{clientID},
 		},
-		client: &http.Client{},
+		client: oauth2Config.Client(context.Background()),
 		Mutex:  new(sync.Mutex),
 		game:   make(map[string]string),
 	}
