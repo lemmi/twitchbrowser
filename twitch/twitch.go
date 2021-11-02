@@ -30,9 +30,7 @@ func (chans Channels) Len() int {
 }
 
 func (chans Channels) Less(i, j int) bool {
-	Eq := func(a, b string) bool {
-		return strings.ToLower(a) == strings.ToLower(b)
-	}
+	Eq := strings.EqualFold
 	Less := func(a, b string) bool {
 		return strings.ToLower(a) < strings.ToLower(b)
 	}

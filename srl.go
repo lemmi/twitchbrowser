@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	srlAPIURL = "http://api.speedrunslive.com/frontend/streams"
+	srlAPIURL = "https://www.speedrunslive.com/api/liveStreams?pageNumber=1&search=&pageSize=10000"
 )
 
 func getSRLNames() (twitchnames []string) {
@@ -20,16 +20,18 @@ func getSRLNames() (twitchnames []string) {
 	defer closer.Do(resp.Body)
 
 	t := struct {
-		Source struct {
-			Channels []struct{ Name string }
-		} `json:"_source"`
+		Data struct {
+			Livestreams struct {
+				Data []struct{ Name string }
+			}
+		}
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&t)
 	if err != nil {
 		return
 	}
-	twitchnames = make([]string, len(t.Source.Channels))
-	for i, p := range t.Source.Channels {
+	twitchnames = make([]string, len(t.Data.Livestreams.Data))
+	for i, p := range t.Data.Livestreams.Data {
 		twitchnames[i] = html.UnescapeString(p.Name)
 	}
 	return twitchnames

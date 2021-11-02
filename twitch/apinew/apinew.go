@@ -136,10 +136,14 @@ func (api apinew) mapGameID(chans twitch.Channels) error {
 
 func (api apinew) GetGameNames(ids []string) (map[string]string, error) {
 	var ret map[string]string
+	var err error
+
+	cache, _ := NewCache()
+	ret, ids, err = cache.GetGameNames(ids)
 	for len(ids) > 0 {
 		var cur []string
 		cur, ids = nextChunk(ids, 100)
-		mappings, err := api.getGameNames(cur)
+		mappings, err := api.getGameNamesChunks(cur)
 		if err != nil {
 			return ret, err
 		}
@@ -147,14 +151,15 @@ func (api apinew) GetGameNames(ids []string) (map[string]string, error) {
 			ret = mappings
 		} else {
 			for k, v := range mappings {
+				_ = cache.SetGameName(k, v)
 				ret[k] = v
 			}
 		}
 	}
 
-	return ret, nil
+	return ret, err
 }
-func (api apinew) getGameNames(ids []string) (map[string]string, error) {
+func (api apinew) getGameNamesChunks(ids []string) (map[string]string, error) {
 	data := make(url.Values)
 	for _, id := range ids {
 		data.Add("id", id)
