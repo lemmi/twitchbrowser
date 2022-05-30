@@ -4,10 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/lemmi/closer"
 	"github.com/lemmi/twitchbrowser/twitch"
@@ -164,6 +166,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	http.DefaultClient.Timeout = 3 * time.Second
 
 	var api twitch.API
 	var id []string
